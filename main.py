@@ -31,19 +31,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# Configure CORS - Accept both local development and production URLs
+frontend_urls = [
+    os.getenv("FRONTEND_URL", "http://localhost:3000"),
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003",
+    "http://localhost:3004",
+    "http://localhost:3005",
+    "https://stockagent.netlify.app",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        frontend_url,
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:3003",
-        "http://localhost:3004",
-        "http://localhost:3005",
-    ],
+    allow_origins=frontend_urls,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
