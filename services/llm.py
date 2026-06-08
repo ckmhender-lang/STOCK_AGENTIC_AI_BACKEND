@@ -15,7 +15,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 async def call_openrouter_api(messages: list, temperature: float = 0.7) -> str:
-    """Call OpenRouter API directly."""
+    """Call OpenRouter API directly with improved timeout handling."""
     if not OPENROUTER_API_KEY:
         logger.error("OPENROUTER_API_KEY not set in environment")
         return ""
@@ -38,7 +38,7 @@ async def call_openrouter_api(messages: list, temperature: float = 0.7) -> str:
                 f"{OPENROUTER_BASE_URL}/chat/completions",
                 json=payload,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=60)
+                timeout=aiohttp.ClientTimeout(total=120)  # Increased to 2 minutes per request
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -52,7 +52,7 @@ async def call_openrouter_api(messages: list, temperature: float = 0.7) -> str:
                     logger.error(f"OpenRouter API error: {response.status} - {error_text}")
                     return ""
     except asyncio.TimeoutError:
-        logger.error("OpenRouter API request timed out")
+        logger.error("OpenRouter API request timed out after 120 seconds")
         return ""
     except Exception as e:
         logger.error(f"Error calling OpenRouter API: {e}")
@@ -71,8 +71,21 @@ async def analyze_text(text: str, prompt: str) -> str:
         return ""
 
 
+async def generate_single_analysis(key: str, prompt: str, context_text: str) -> tuple[str, str]:
+    """Generate a single analysis item in parallel."""
+    try:
+        full_prompt = f"{prompt}\n\nData:\n{context_text}"
+        messages = [{"role": "user", "content": full_prompt}]
+        response = await call_openrouter_api(messages)
+        result = response if response else f"Unable to generate {key} at this time."
+        return (key, result)
+    except Exception as e:
+        logger.error(f"Error generating {key}: {e}")
+        return (key, f"Unable to generate {key} at this time.")
+
+
 async def generate_analysis(context: Dict[str, Any]) -> Dict[str, str]:
-    """Generate stock analysis using LLM with provided context."""
+    """Generate stock analysis using LLM with provided context (parallel calls)."""
     try:
         # Format context for analysis
         context_text = json.dumps(context, indent=2, default=str)
@@ -97,17 +110,12 @@ async def generate_analysis(context: Dict[str, Any]) -> Dict[str, str]:
             (1+ years) price outlook? Provide 1-2 sentences with reasoning.""",
         }
         
-        results = {}
+        # Run all LLM calls in parallel
+        tasks = [generate_single_analysis(key, prompt, context_text) for key, prompt in analysis_prompts.items()]
+        results_list = await asyncio.gather(*tasks, return_exceptions=False)
         
-        for key, prompt in analysis_prompts.items():
-            try:
-                full_prompt = f"{prompt}\n\nData:\n{context_text}"
-                messages = [{"role": "user", "content": full_prompt}]
-                response = await call_openrouter_api(messages)
-                results[key] = response if response else f"Unable to generate {key} at this time."
-            except Exception as e:
-                logger.error(f"Error generating {key}: {e}")
-                results[key] = f"Unable to generate {key} at this time."
+        # Convert list of tuples to dict
+        results = dict(results_list)
         
         return results
     except Exception as e:
