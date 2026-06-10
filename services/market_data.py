@@ -18,22 +18,28 @@ FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 
 async def validate_ticker(ticker: str) -> bool:
     """Validate if ticker exists in Finnhub."""
+    logger.info(f"[VALIDATE_TICKER] Checking ticker: {ticker}")
+    
     if not ticker or len(ticker) > 10:
+        logger.warning(f"[VALIDATE_TICKER] Invalid ticker format: {ticker}")
         return False
     
     # Check if API key is configured
     if not FINNHUB_API_KEY or FINNHUB_API_KEY == "":
-        logger.warning("FINNHUB_API_KEY not configured - all tickers will be accepted")
+        logger.warning("[VALIDATE_TICKER] FINNHUB_API_KEY not configured - all tickers will be accepted")
         return True
     
     try:
+        logger.info(f"[VALIDATE_TICKER] Querying Finnhub API for {ticker}")
         async with aiohttp.ClientSession() as session:
             url = f"{FINNHUB_BASE_URL}/quote"
             params = {"symbol": ticker.upper(), "token": FINNHUB_API_KEY}
             
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                logger.info(f"[VALIDATE_TICKER] Finnhub response status: {resp.status}")
                 if resp.status == 200:
                     data = await resp.json()
+                    logger.info(f"[VALIDATE_TICKER] Finnhub data received for {ticker}: {data.get('c') is not None}")
                     # Check if we got valid price data
                     # Handle case where API returns data but without price (c field)
                     if isinstance(data, dict):
@@ -43,15 +49,16 @@ async def validate_ticker(ticker: str) -> bool:
                     return False
                 elif resp.status == 429:
                     # Rate limited - assume ticker is valid
-                    logger.warning(f"Rate limited by Finnhub API for ticker {ticker}")
+                    logger.warning(f"[VALIDATE_TICKER] Rate limited by Finnhub API for ticker {ticker}")
                     return True
                 else:
+                    logger.warning(f"[VALIDATE_TICKER] Finnhub returned status {resp.status} for {ticker}")
                     return False
     except asyncio.TimeoutError:
-        logger.warning(f"Timeout validating ticker {ticker} - assuming valid")
+        logger.warning(f"[VALIDATE_TICKER] Timeout validating ticker {ticker} - assuming valid")
         return True
     except Exception as e:
-        logger.error(f"Error validating ticker {ticker}: {e}")
+        logger.error(f"[VALIDATE_TICKER] Error validating ticker {ticker}: {type(e).__name__}: {str(e)}", exc_info=True)
         return False
 
 

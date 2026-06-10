@@ -85,14 +85,19 @@ async def analyze_stock(request: StockAnalysisRequest):
     
     # Validate ticker exists
     try:
+        logger.info(f"[VALIDATE] Starting ticker validation for {ticker}")
         is_valid = await validate_ticker(ticker)
+        logger.info(f"[VALIDATE] Ticker {ticker} validation result: {is_valid}")
         if not is_valid:
+            logger.warning(f"[VALIDATE] Ticker {ticker} not found in Finnhub")
             raise HTTPException(
                 status_code=404,
                 detail=f"Ticker '{ticker}' not found. Please check the symbol and try again."
             )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error validating ticker {ticker}: {e}")
+        logger.error(f"[VALIDATE] ERROR validating ticker {ticker}: {type(e).__name__}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Error validating ticker. Please try again."
@@ -100,14 +105,16 @@ async def analyze_stock(request: StockAnalysisRequest):
     
     try:
         # Run analysis workflow
-        logger.info(f"Starting analysis workflow for {ticker}")
+        logger.info(f"[WORKFLOW] Starting analysis workflow for {ticker}")
         state = await run_analysis_workflow(ticker)
+        logger.info(f"[WORKFLOW] Analysis workflow completed for {ticker}")
         
         # Check for errors
         if state.errors:
-            logger.warning(f"Analysis completed with errors for {ticker}: {state.errors}")
+            logger.warning(f"[WORKFLOW] Analysis completed with errors for {ticker}: {state.errors}")
         
         # Build response
+        logger.info(f"[RESPONSE] Building response for {ticker}")
         response = StockAnalysisResponse(
             ticker=ticker,
             timestamp=state.timestamp,

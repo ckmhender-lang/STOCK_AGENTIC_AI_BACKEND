@@ -16,8 +16,10 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 async def call_openrouter_api(messages: list, temperature: float = 0.7) -> str:
     """Call OpenRouter API directly with improved timeout handling."""
+    logger.info(f"[LLM] OpenRouter API Key configured: {bool(OPENROUTER_API_KEY)}")
+    
     if not OPENROUTER_API_KEY:
-        logger.error("OPENROUTER_API_KEY not set in environment")
+        logger.error("[LLM] OPENROUTER_API_KEY not set in environment")
         return ""
     
     headers = {
@@ -32,6 +34,8 @@ async def call_openrouter_api(messages: list, temperature: float = 0.7) -> str:
         "max_tokens": 1024,
     }
     
+    logger.info(f"[LLM] Calling OpenRouter API with model: {OPENROUTER_MODEL}")
+    
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -40,53 +44,63 @@ async def call_openrouter_api(messages: list, temperature: float = 0.7) -> str:
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=120)  # Increased to 2 minutes per request
             ) as response:
+                logger.info(f"[LLM] OpenRouter response status: {response.status}")
                 if response.status == 200:
                     data = await response.json()
+                    logger.info(f"[LLM] OpenRouter response received successfully")
                     if data.get("choices") and len(data["choices"]) > 0:
-                        return data["choices"][0]["message"]["content"].strip()
+                        result = data["choices"][0]["message"]["content"].strip()
+                        logger.info(f"[LLM] Generated analysis (length: {len(result)})")
+                        return result
                     else:
-                        logger.warning("No choices in API response")
+                        logger.warning("[LLM] No choices in API response")
                         return ""
                 else:
                     error_text = await response.text()
-                    logger.error(f"OpenRouter API error: {response.status} - {error_text}")
+                    logger.error(f"[LLM] OpenRouter API error: {response.status} - {error_text}")
                     return ""
     except asyncio.TimeoutError:
-        logger.error("OpenRouter API request timed out after 120 seconds")
+        logger.error("[LLM] OpenRouter API request timed out after 120 seconds")
         return ""
     except Exception as e:
-        logger.error(f"Error calling OpenRouter API: {e}")
+        logger.error(f"[LLM] Error calling OpenRouter API: {type(e).__name__}: {str(e)}", exc_info=True)
         return ""
 
 
 async def analyze_text(text: str, prompt: str) -> str:
     """Use LLM to analyze text with a given prompt."""
     try:
+        logger.info(f"[ANALYZE] Starting text analysis with prompt (text length: {len(text)})")
         messages = [
             {"role": "user", "content": prompt + "\n\nContext:\n" + text}
         ]
-        return await call_openrouter_api(messages)
+        result = await call_openrouter_api(messages)
+        logger.info(f"[ANALYZE] Text analysis completed")
+        return result
     except Exception as e:
-        logger.error(f"Error analyzing text: {e}")
+        logger.error(f"[ANALYZE] Error analyzing text: {type(e).__name__}: {str(e)}", exc_info=True)
         return ""
 
 
 async def generate_single_analysis(key: str, prompt: str, context_text: str) -> tuple[str, str]:
     """Generate a single analysis item in parallel."""
     try:
+        logger.info(f"[GENERATE] Starting parallel analysis for: {key}")
         full_prompt = f"{prompt}\n\nData:\n{context_text}"
         messages = [{"role": "user", "content": full_prompt}]
         response = await call_openrouter_api(messages)
         result = response if response else f"Unable to generate {key} at this time."
+        logger.info(f"[GENERATE] Completed analysis for: {key} (result length: {len(result)})")
         return (key, result)
     except Exception as e:
-        logger.error(f"Error generating {key}: {e}")
+        logger.error(f"[GENERATE] Error generating {key}: {type(e).__name__}: {str(e)}", exc_info=True)
         return (key, f"Unable to generate {key} at this time.")
 
 
 async def generate_analysis(context: Dict[str, Any]) -> Dict[str, str]:
     """Generate stock analysis using LLM with provided context (parallel calls)."""
     try:
+        logger.info(f"[GENERATE_ANALYSIS] Starting parallel analysis generation (context size: {len(json.dumps(context))} bytes)")
         # Format context for analysis
         context_text = json.dumps(context, indent=2, default=str)
         
@@ -111,15 +125,17 @@ async def generate_analysis(context: Dict[str, Any]) -> Dict[str, str]:
         }
         
         # Run all LLM calls in parallel
+        logger.info(f"[GENERATE_ANALYSIS] Launching {len(analysis_prompts)} parallel tasks")
         tasks = [generate_single_analysis(key, prompt, context_text) for key, prompt in analysis_prompts.items()]
         results_list = await asyncio.gather(*tasks, return_exceptions=False)
         
         # Convert list of tuples to dict
         results = dict(results_list)
+        logger.info(f"[GENERATE_ANALYSIS] All parallel tasks completed successfully")
         
         return results
     except Exception as e:
-        logger.error(f"Error in generate_analysis: {e}")
+        logger.error(f"[GENERATE_ANALYSIS] Error in generate_analysis: {type(e).__name__}: {str(e)}", exc_info=True)
         return {
             "business_summary": "Unable to generate analysis at this time.",
             "news_summary": "Unable to generate analysis at this time.",
