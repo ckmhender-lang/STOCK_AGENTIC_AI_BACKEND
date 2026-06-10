@@ -100,7 +100,7 @@ async def generate_single_analysis(key: str, prompt: str, context_text: str) -> 
 async def generate_analysis(context: Dict[str, Any]) -> Dict[str, str]:
     """Generate stock analysis using LLM with provided context (parallel calls)."""
     try:
-        logger.info(f"[GENERATE_ANALYSIS] Starting parallel analysis generation (context size: {len(json.dumps(context))} bytes)")
+        logger.info(f"[GENERATE_ANALYSIS] Starting parallel analysis generation (context keys: {list(context.keys())})")
         # Format context for analysis
         context_text = json.dumps(context, indent=2, default=str)
         
