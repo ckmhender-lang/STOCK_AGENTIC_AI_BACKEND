@@ -59,6 +59,7 @@ class StockAnalysisResponse(BaseModel):
     """Response schema for stock analysis."""
     ticker: str
     timestamp: datetime
+    asset_type: Optional[str] = None  # "stock", "etf", "mutual_fund", etc.
     price_data: PriceData
     company_profile: CompanyProfile
     recent_news: List[NewsItem]

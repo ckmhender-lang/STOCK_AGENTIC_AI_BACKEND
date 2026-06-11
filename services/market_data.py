@@ -230,3 +230,44 @@ async def get_financial_metrics(ticker: str) -> FinancialMetrics:
     except Exception as e:
         logger.error(f"Error fetching financial metrics for {ticker}: {e}")
         return FinancialMetrics()
+
+
+def detect_asset_type(ticker: str) -> str:
+    """
+    Detect asset type (stock, etf, or mutual_fund) based on ticker.
+    
+    Common patterns:
+    - Mutual Funds: FSELX, FXAIX, FCNTX, VFIAX, VTSAX, etc. (typically 5 chars ending in X or capital letters)
+    - ETFs: SPY, QQQ, IWM, AGG, GLD, XLE, etc. (typically 1-4 chars)
+    - Stocks: AAPL, MSFT, NVDA, GOOGL, etc. (typically 1-5 chars)
+    
+    This is a heuristic-based detection. For more accurate results, 
+    you would need to query a database or API that provides security type information.
+    """
+    ticker_upper = ticker.upper()
+    ticker_len = len(ticker_upper)
+    
+    # Known mutual fund tickers
+    mutual_funds = {
+        'FSELX', 'FXAIX', 'FCNTX', 'VFIAX', 'VTSAX', 'VBTLX', 'FSKAX', 
+        'JMVAX', 'PGAGX', 'DODGX', 'ADSSX', 'AIVSX', 'ANIMX', 'AQRIX',
+        'ARMNX', 'ARMSX', 'ARTGX', 'ARTSX', 'ARTHX', 'ASMBX', 'ASGSX'
+    }
+    
+    # Known ETF tickers
+    etfs = {
+        'SPY', 'QQQ', 'IWM', 'AGG', 'GLD', 'XLE', 'XLV', 'XLK', 'VTI', 'SCHD',
+        'VOO', 'VUG', 'VTV', 'VGT', 'VHT', 'VFV', 'VGK', 'VXUS', 'BND', 'BSV',
+        'VWITX', 'EMXC', 'EEM', 'IEMG', 'HYLD', 'HYD', 'XYLD', 'JEPI'
+    }
+    
+    if ticker_upper in mutual_funds:
+        return 'mutual_fund'
+    elif ticker_upper in etfs:
+        return 'etf'
+    # Heuristic: if 5 characters and ends with X, likely a mutual fund
+    elif ticker_len == 5 and ticker_upper.endswith('X'):
+        return 'mutual_fund'
+    # Otherwise, assume it's a stock (including unknown assets)
+    else:
+        return 'stock'

@@ -14,7 +14,7 @@ import asyncio
 
 from models.schemas import StockAnalysisRequest, StockAnalysisResponse, ErrorResponse
 from agents.graph import run_analysis_workflow
-from services.market_data import validate_ticker
+from services.market_data import validate_ticker, detect_asset_type
 from datetime import datetime
 
 # Configure logging
@@ -118,6 +118,7 @@ async def analyze_stock(request: StockAnalysisRequest):
         response = StockAnalysisResponse(
             ticker=ticker,
             timestamp=state.timestamp,
+            asset_type=detect_asset_type(ticker),
             price_data=state.price_data,
             company_profile=state.company_profile,
             recent_news=state.recent_news,
